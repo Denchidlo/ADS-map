@@ -32,8 +32,44 @@ namespace base_map
 
             rb_bits state;
         } rb_node;
-
     public:
+        class map_iterator
+        {
+        public:
+            map_iterator(map* _map, rb_node* _ptr)
+            {
+                this->current_ptr = _ptr;
+                this->_map= _map;
+            }
+
+            _vtype &operator*()
+            {
+                return current_ptr->value;
+            }
+
+            _vtype *operator->()
+            {
+                return &current_ptr->value;
+            }
+
+            map_iterator &operator++()
+            {
+                this->current_ptr = _map->rb_next(current_ptr);
+                return *this;
+            }
+
+            map_iterator &operator--()
+            {
+                this->current_ptr = _map->rb_prev(current_ptr);
+                return *this;
+            }
+
+        private:
+            map* _map;
+            rb_node *current_ptr;
+        };
+
+    public: 
         map()
         {
             this->nil = (rb_node *)malloc(sizeof(rb_node));
@@ -43,6 +79,7 @@ namespace base_map
             this->nil->state.visited = 0;
             this->nil->state.color = RB_BLACK;
             this->root = this->nil;
+            this->begin_ptr = this->end_ptr = this->nil;
         }
 
         ~map()
@@ -50,32 +87,53 @@ namespace base_map
             free(this->nil);
         }
 
+        map_iterator begin()
+        {
+            map_iterator iter = map_iterator(this, this->begin_ptr);
+            return iter;
+        }
+
+        map_iterator end()
+        {
+            map_iterator iter = map_iterator(this, this->end_ptr);
+            return iter;
+        }
+
         void insert(_ktype key, _vtype value)
         {
             rb_node *new_node = allocate_node(key, value);
             rb_insert(new_node);
+            if (this->begin_ptr == this->nil || this->begin_ptr->value > value)
+                this->begin_ptr = new_node;
+            if (this->end_ptr == this->nil || this->end_ptr->value > value)
+                this->end_ptr = new_node;
         }
 
         bool erase(_ktype key)
         {
-            rb_node* to_remove = rb_search(this->root, key);
+            rb_node *to_remove = rb_search(this->root, key);
             if (to_remove == this->nil)
                 return false;
+            if (to_remove == this->begin_ptr)
+                this->begin_ptr = to_remove->p;
+            if (to_remove == this->end_ptr)
+                this->end_ptr = to_remove->p;
             rb_remove(to_remove);
             free(to_remove);
             return true;
         }
 
-        _vtype& operator[](const _ktype& key)
+        _vtype &operator[](const _ktype &key)
         {
-            rb_node* responce = rb_search(this->root, key);
+            rb_node *responce = rb_search(this->root, key);
             if (responce != this->nil)
                 return responce->value;
             throw new std::logic_error("Key failure");
         }
 
-        
     private:
+        friend class map_iterator;
+
         rb_node *allocate_node(_ktype key, _vtype value)
         {
             rb_node *responce = (rb_node *)malloc(sizeof(rb_node));
@@ -227,7 +285,7 @@ namespace base_map
             displace_with->p = to_remove->p;
         }
 
-        rb_node* rb_search(rb_node* root, _ktype key)
+        rb_node *rb_search(rb_node *root, _ktype key)
         {
             if (root == this->nil || root->key == key)
                 return root;
@@ -238,7 +296,7 @@ namespace base_map
             return rb_search(root->l, key);
         }
 
-        rb_node* rb_find(_ktype key)
+        rb_node *rb_find(_ktype key)
         {
             return rb_search(this->root, key);
         }
@@ -360,6 +418,35 @@ namespace base_map
                 root = root->r;
             return root;
         }
+
+        rb_node *rb_next(rb_node *current)
+        {
+            if (current->r != this->nil)
+                return rb_min(current->r);
+            rb_node *y = current->p;
+            while (y != this->nil && current == y->r)
+            {
+                current = y;
+                y = y->p;
+            }
+            return y;
+        }
+
+        rb_node *rb_prev(rb_node *current)
+        {
+            if (current->l != this->nil)
+                return rb_max(current->l);
+            rb_node *y = current->p;
+            while (y != this->nil && current == y->l)
+            {
+                current = y;
+                y = y->p;
+            }
+            return y;
+        }
+
+        rb_node *begin_ptr;
+        rb_node *end_ptr;
 
         rb_node *nil;
         rb_node *root;
